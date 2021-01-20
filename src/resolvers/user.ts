@@ -41,6 +41,7 @@ class UserResponse {
 export class UserResolver {
     @Query(() => User, { nullable: true })
     async me(@Ctx() { req, em }: MyContext) {
+        console.log(req.session);
         if (!req.session.userId) {
             return null;
         }
@@ -69,7 +70,7 @@ export class UserResolver {
                 errors: [
                     {
                         field: "password",
-                        message: "username must be at least 3 character",
+                        message: "password must be at least 3 character",
                     },
                 ],
             };
@@ -116,6 +117,27 @@ export class UserResolver {
         @Arg("userData") userData: UsernamePasswordInput,
         @Ctx() { em, req }: MyContext
     ): Promise<UserResponse> {
+        if (userData.username.trim() === "") {
+            return {
+                errors: [
+                    {
+                        field: "username",
+                        message: "Username must not be empty",
+                    },
+                ],
+            };
+        }
+        if (userData.password.trim() === "") {
+            return {
+                errors: [
+                    {
+                        field: "password",
+                        message: "Password must not be empty",
+                    },
+                ],
+            };
+        }
+
         const user = await em.findOne(User, {
             username: userData.username,
         });
@@ -147,7 +169,6 @@ export class UserResolver {
         //Store userId Session, set a cookie on user
         //kept them logged in
         req.session.userId = user.id;
-
         return {
             user,
         };

@@ -70,6 +70,7 @@ UserResponse = __decorate([
 let UserResolver = class UserResolver {
     me({ req, em }) {
         return __awaiter(this, void 0, void 0, function* () {
+            console.log(req.session);
             if (!req.session.userId) {
                 return null;
             }
@@ -94,7 +95,7 @@ let UserResolver = class UserResolver {
                     errors: [
                         {
                             field: "password",
-                            message: "username must be at least 3 character",
+                            message: "password must be at least 3 character",
                         },
                     ],
                 };
@@ -135,6 +136,26 @@ let UserResolver = class UserResolver {
     }
     login(userData, { em, req }) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (userData.username.trim() === "") {
+                return {
+                    errors: [
+                        {
+                            field: "username",
+                            message: "Username must not be empty",
+                        },
+                    ],
+                };
+            }
+            if (userData.password.trim() === "") {
+                return {
+                    errors: [
+                        {
+                            field: "password",
+                            message: "Password must not be empty",
+                        },
+                    ],
+                };
+            }
             const user = yield em.findOne(User_1.User, {
                 username: userData.username,
             });
