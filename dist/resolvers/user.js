@@ -68,7 +68,16 @@ UserResponse = __decorate([
     type_graphql_1.ObjectType()
 ], UserResponse);
 let UserResolver = class UserResolver {
-    register(userData, { em }) {
+    me({ req, em }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!req.session.userId) {
+                return null;
+            }
+            const user = yield em.findOne(User_1.User, { id: req.session.userId });
+            return user;
+        });
+    }
+    register(userData, { em, req }) {
         return __awaiter(this, void 0, void 0, function* () {
             if (userData.username.length <= 2) {
                 return {
@@ -97,12 +106,13 @@ let UserResolver = class UserResolver {
             });
             try {
                 yield em.persistAndFlush(user);
+                req.session.userId = user.id;
                 return {
                     user,
                 };
             }
             catch (err) {
-                if (err.code === "23505" || err.detail.includes("already exists")) {
+                if (err.code === "23505") {
                     return {
                         errors: [
                             {
@@ -123,7 +133,7 @@ let UserResolver = class UserResolver {
             }
         });
     }
-    login(userData, { em }) {
+    login(userData, { em, req }) {
         return __awaiter(this, void 0, void 0, function* () {
             const user = yield em.findOne(User_1.User, {
                 username: userData.username,
@@ -149,12 +159,20 @@ let UserResolver = class UserResolver {
                     ],
                 };
             }
+            req.session.userId = user.id;
             return {
                 user,
             };
         });
     }
 };
+__decorate([
+    type_graphql_1.Query(() => User_1.User, { nullable: true }),
+    __param(0, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserResolver.prototype, "me", null);
 __decorate([
     type_graphql_1.Mutation(() => UserResponse),
     __param(0, type_graphql_1.Arg("userData")),
