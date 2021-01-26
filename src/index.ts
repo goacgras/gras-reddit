@@ -1,7 +1,7 @@
 //DATABASE CONNECTION
 import "reflect-metadata";
 import { MikroORM } from "@mikro-orm/core";
-import { __prod__ } from "./constants";
+import { COOKIE_NAME, __prod__ } from "./constants";
 // import { Post } from "./entities/Post";
 import mikroConfig from "./mikro-orm.config";
 
@@ -13,27 +13,33 @@ import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/posts";
 import { UserResolver } from "./resolvers/user";
 
-import redis from "redis";
+import Redis from "ioredis";
+// import redis from "redis";
 import session from "express-session";
 import connectRedis from "connect-redis";
 import { MyContext } from "./types";
 import cors from "cors";
+import { sendEmail } from "./utils/sendEmail";
+// import { User } from "./entities/User";
 
 const main = async () => {
+    sendEmail("reza@mail.com", "sup").catch(console.error);
     const orm = await MikroORM.init(mikroConfig);
+    // await orm.em.nativeDelete(User, {});
     await orm.getMigrator().up();
 
     const app = express();
 
     const RedisStore = connectRedis(session);
-    const redisClient = redis.createClient();
+    const redis = new Redis();
+    // const redisClient = redis.createClient();
 
     app.use(cors({ origin: "http://localhost:3000", credentials: true }));
     app.use(
         session({
-            name: "qid",
+            name: COOKIE_NAME,
             store: new RedisStore({
-                client: redisClient,
+                client: redis as any,
                 disableTouch: true,
             }),
             cookie: {
@@ -53,7 +59,7 @@ const main = async () => {
             resolvers: [HelloResolver, PostResolver, UserResolver],
             validate: false,
         }),
-        context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
+        context: ({ req, res }): MyContext => ({ em: orm.em, req, res, redis }),
     });
 
     //create graphql end point on express
