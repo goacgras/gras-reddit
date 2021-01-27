@@ -33,6 +33,7 @@ const UsernamePasswordInput_1 = require("./UsernamePasswordInput");
 const validateRegister_1 = require("../utils/validateRegister");
 const sendEmail_1 = require("../utils/sendEmail");
 const uuid_1 = require("uuid");
+const typeorm_1 = require("typeorm");
 let FieldError = class FieldError {
 };
 __decorate([
@@ -60,31 +61,25 @@ UserResponse = __decorate([
     type_graphql_1.ObjectType()
 ], UserResponse);
 let UserResolver = class UserResolver {
-    me({ req, em }) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!req.session.userId) {
-                return null;
-            }
-            const user = yield em.findOne(User_1.User, { id: req.session.userId });
-            return user;
-        });
+    me({ req }) {
+        if (!req.session.userId) {
+            return null;
+        }
+        return User_1.User.findOne(req.session.userId);
     }
-    users({ em }) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const users = yield em.find(User_1.User, {});
-            return users;
-        });
+    users() {
+        return User_1.User.find();
     }
-    changePassword(token, newPassword, { redis, em, req }) {
+    changePassword(token, newPassword, { redis, req }) {
         return __awaiter(this, void 0, void 0, function* () {
             if (newPassword.length <= 2) {
                 return {
                     errors: [
                         {
                             field: "newPassword",
-                            message: "Length must be greater than 2"
-                        }
-                    ]
+                            message: "Length must be greater than 2",
+                        },
+                    ],
                 };
             }
             const key = constants_1.FORGET_PASSWORD_PREFIX + token;
@@ -93,43 +88,49 @@ let UserResolver = class UserResolver {
                 return {
                     errors: [
                         {
-                            field: 'token',
-                            message: "Invalid token"
-                        }
-                    ]
+                            field: "token",
+                            message: "Invalid token",
+                        },
+                    ],
                 };
             }
-            const user = yield em.findOne(User_1.User, { id: parseInt(userId) });
+            const userIdNum = parseInt(userId);
+            const user = yield User_1.User.findOne(userIdNum);
             if (!user) {
                 return {
                     errors: [
                         {
-                            field: 'token',
-                            message: "User no longer exists"
-                        }
-                    ]
+                            field: "token",
+                            message: "User no longer exists",
+                        },
+                    ],
                 };
             }
-            user.password = yield argon2_1.default.hash(newPassword);
-            yield em.persistAndFlush(user);
-            redis.del(key);
+            yield User_1.User.update({ id: userIdNum }, { password: yield argon2_1.default.hash(newPassword) });
+            yield redis.del(key);
             req.session.userId = user.id;
             return { user };
         });
     }
-    register(userData, { em, req }) {
+    register(userData, { req }) {
         return __awaiter(this, void 0, void 0, function* () {
             const errors = validateRegister_1.validateRegister(userData);
             if (errors)
                 return { errors };
             const hashedPassword = yield argon2_1.default.hash(userData.password);
-            const user = em.create(User_1.User, {
-                username: userData.username,
-                password: hashedPassword,
-                email: userData.email,
-            });
             try {
-                yield em.persistAndFlush(user);
+                const result = yield typeorm_1.getConnection()
+                    .createQueryBuilder()
+                    .insert()
+                    .into(User_1.User)
+                    .values({
+                    username: userData.username,
+                    password: hashedPassword,
+                    email: userData.email,
+                })
+                    .returning("*")
+                    .execute();
+                let user = result.raw[0];
                 req.session.userId = user.id;
                 return {
                     user,
@@ -157,11 +158,11 @@ let UserResolver = class UserResolver {
             }
         });
     }
-    login(usernameOrEmail, password, { em, req }) {
+    login(usernameOrEmail, password, { req }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const user = yield em.findOne(User_1.User, usernameOrEmail.includes("@")
-                ? { email: usernameOrEmail }
-                : { username: usernameOrEmail });
+            const user = yield User_1.User.findOne(usernameOrEmail.includes("@")
+                ? { where: { email: usernameOrEmail } }
+                : { where: { username: usernameOrEmail } });
             if (usernameOrEmail.trim() === "") {
                 return {
                     errors: [
@@ -219,9 +220,9 @@ let UserResolver = class UserResolver {
             resolve(true);
         }));
     }
-    forgotPassword(email, { em, redis }) {
+    forgotPassword(email, { redis }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const user = yield em.findOne(User_1.User, { email });
+            const user = yield User_1.User.findOne({ where: { email } });
             if (!user) {
                 return true;
             }
@@ -237,19 +238,18 @@ __decorate([
     __param(0, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
+    __metadata("design:returntype", void 0)
 ], UserResolver.prototype, "me", null);
 __decorate([
-    type_graphql_1.Query(() => User_1.User, { nullable: true }),
-    __param(0, type_graphql_1.Ctx()),
+    type_graphql_1.Query(() => [User_1.User]),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], UserResolver.prototype, "users", null);
 __decorate([
     type_graphql_1.Mutation(() => UserResponse),
-    __param(0, type_graphql_1.Arg('token')),
-    __param(1, type_graphql_1.Arg('newPassword')),
+    __param(0, type_graphql_1.Arg("token")),
+    __param(1, type_graphql_1.Arg("newPassword")),
     __param(2, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String, Object]),

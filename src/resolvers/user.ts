@@ -15,6 +15,7 @@ import { UsernamePasswordInput } from "./UsernamePasswordInput";
 import { validateRegister } from "../utils/validateRegister";
 import { sendEmail } from "../utils/sendEmail";
 import { v4 } from "uuid";
+import { getConnection } from "typeorm";
 
 @ObjectType()
 class FieldError {
@@ -36,92 +37,98 @@ class UserResponse {
 @Resolver()
 export class UserResolver {
     @Query(() => User, { nullable: true })
-    async me(@Ctx() { req, em }: MyContext) {
+    me(@Ctx() { req }: MyContext) {
         // console.log(req.session);
         if (!req.session.userId) {
             return null;
         }
 
-        const user = await em.findOne(User, { id: req.session.userId });
-        return user;
+        return User.findOne(req.session.userId);
     }
 
-    @Query(() => User, { nullable: true })
-    async users(@Ctx() { em }: MyContext): Promise<User[]> {
-        const users = await em.find(User, {});
-        // console.log(users);
-        return users;
+    @Query(() => [User])
+    users(): Promise<User[]> {
+        return User.find();
     }
 
     @Mutation(() => UserResponse)
     async changePassword(
-        @Arg('token') token : string,
-        @Arg('newPassword') newPassword : string
-        @Ctx() {redis, em, req}:MyContext
-    ) : Promise<UserResponse> {
-        if(newPassword.length <= 2){
-            return { 
+        @Arg("token") token: string,
+        @Arg("newPassword") newPassword: string,
+        @Ctx() { redis, req }: MyContext
+    ): Promise<UserResponse> {
+        if (newPassword.length <= 2) {
+            return {
                 errors: [
                     {
                         field: "newPassword",
-                        message: "Length must be greater than 2"
-                    }
-                ]
-            }
+                        message: "Length must be greater than 2",
+                    },
+                ],
+            };
         }
-        const key = FORGET_PASSWORD_PREFIX + token
-        const userId = await redis.get(key)
-        if(!userId){
+        const key = FORGET_PASSWORD_PREFIX + token;
+        const userId = await redis.get(key);
+        if (!userId) {
             return {
-                errors:[
+                errors: [
                     {
-                        field: 'token',
-                        message: "Invalid token"
-                    }
-                ]
-            }
+                        field: "token",
+                        message: "Invalid token",
+                    },
+                ],
+            };
         }
 
-        const user = await em.findOne(User, { id: parseInt(userId)})
+        const userIdNum = parseInt(userId);
+        const user = await User.findOne(userIdNum);
 
-        if(!user){
+        if (!user) {
             return {
-                errors:[
+                errors: [
                     {
-                        field: 'token',
-                        message: "User no longer exists"
-                    }
-                ]
-            }
+                        field: "token",
+                        message: "User no longer exists",
+                    },
+                ],
+            };
         }
-        user.password = await argon2.hash(newPassword);
-        await em.persistAndFlush(user);
+        await User.update(
+            { id: userIdNum },
+            { password: await argon2.hash(newPassword) }
+        );
 
-        redis.del(key);
+        await redis.del(key);
 
         //login user after change password
         req.session.userId = user.id;
 
         return { user };
-
     }
 
     @Mutation(() => UserResponse)
     async register(
         @Arg("userData") userData: UsernamePasswordInput,
-        @Ctx() { em, req }: MyContext
+        @Ctx() { req }: MyContext
     ): Promise<UserResponse> {
         const errors = validateRegister(userData);
         if (errors) return { errors };
 
         const hashedPassword = await argon2.hash(userData.password);
-        const user = em.create(User, {
-            username: userData.username,
-            password: hashedPassword,
-            email: userData.email,
-        });
+
         try {
-            await em.persistAndFlush(user);
+            const result = await getConnection()
+                .createQueryBuilder()
+                .insert()
+                .into(User)
+                .values({
+                    username: userData.username,
+                    password: hashedPassword,
+                    email: userData.email,
+                })
+                .returning("*") // returns back to field
+                .execute();
+            let user = result.raw[0];
             req.session.userId = user.id;
             return {
                 user,
@@ -155,13 +162,12 @@ export class UserResolver {
     async login(
         @Arg("usernameOrEmail") usernameOrEmail: string,
         @Arg("password") password: string,
-        @Ctx() { em, req }: MyContext
+        @Ctx() { req }: MyContext
     ): Promise<UserResponse> {
-        const user = await em.findOne(
-            User,
+        const user = await User.findOne(
             usernameOrEmail.includes("@")
-                ? { email: usernameOrEmail }
-                : { username: usernameOrEmail }
+                ? { where: { email: usernameOrEmail } }
+                : { where: { username: usernameOrEmail } }
         );
         if (usernameOrEmail.trim() === "") {
             return {
@@ -231,9 +237,9 @@ export class UserResolver {
     @Mutation(() => Boolean)
     async forgotPassword(
         @Arg("email") email: string,
-        @Ctx() { em, redis }: MyContext
+        @Ctx() { redis }: MyContext
     ) {
-        const user = await em.findOne(User, { email });
+        const user = await User.findOne({ where: { email } });
         if (!user) {
             //email not in database
             return true;

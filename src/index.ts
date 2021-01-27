@@ -1,9 +1,8 @@
 //DATABASE CONNECTION
 import "reflect-metadata";
-import { MikroORM } from "@mikro-orm/core";
 import { COOKIE_NAME, __prod__ } from "./constants";
 // import { Post } from "./entities/Post";
-import mikroConfig from "./mikro-orm.config";
+import { createConnection } from "typeorm";
 
 //SERVER CONNECTION
 import express from "express";
@@ -19,14 +18,22 @@ import session from "express-session";
 import connectRedis from "connect-redis";
 import { MyContext } from "./types";
 import cors from "cors";
+import { Post } from "./entities/Post";
+import { User } from "./entities/User";
 // import { sendEmail } from "./utils/sendEmail";
 // import { User } from "./entities/User";
 
 const main = async () => {
     // sendEmail("reza@mail.com", "sup").catch(console.error);
-    const orm = await MikroORM.init(mikroConfig);
-    // await orm.em.nativeDelete(User, {});
-    await orm.getMigrator().up();
+    const conn = await createConnection({
+        type: "postgres",
+        database: "gras-reddit-typeorm",
+        username: "postgres",
+        password: "root",
+        logging: true,
+        synchronize: true,
+        entities: [Post, User],
+    });
 
     const app = express();
 
@@ -59,7 +66,7 @@ const main = async () => {
             resolvers: [HelloResolver, PostResolver, UserResolver],
             validate: false,
         }),
-        context: ({ req, res }): MyContext => ({ em: orm.em, req, res, redis }),
+        context: ({ req, res }): MyContext => ({ req, res, redis }),
     });
 
     //create graphql end point on express
@@ -68,12 +75,6 @@ const main = async () => {
     app.listen(5000, () => {
         console.log("Server started at localhost:5000");
     });
-
-    // const post = orm.em.create(Post, { title: "my first post" });
-    // await orm.em.persistAndFlush(post);
-
-    // const posts = await orm.em.find(Post, {});
-    // console.log(posts);
 };
 
 main().catch((err) => {
