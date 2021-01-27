@@ -19,11 +19,11 @@ import session from "express-session";
 import connectRedis from "connect-redis";
 import { MyContext } from "./types";
 import cors from "cors";
-import { sendEmail } from "./utils/sendEmail";
+// import { sendEmail } from "./utils/sendEmail";
 // import { User } from "./entities/User";
 
 const main = async () => {
-    sendEmail("reza@mail.com", "sup").catch(console.error);
+    // sendEmail("reza@mail.com", "sup").catch(console.error);
     const orm = await MikroORM.init(mikroConfig);
     // await orm.em.nativeDelete(User, {});
     await orm.getMigrator().up();
