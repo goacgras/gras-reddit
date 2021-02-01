@@ -22,6 +22,7 @@ import { Post } from "./entities/Post";
 import { User } from "./entities/User";
 // import { sendEmail } from "./utils/sendEmail";
 // import { User } from "./entities/User";
+import path from "path";
 
 const main = async () => {
     // sendEmail("reza@mail.com", "sup").catch(console.error);
@@ -32,8 +33,11 @@ const main = async () => {
         password: "root",
         logging: true,
         synchronize: true,
+        migrations: [path.join(__dirname, "./migrations/*")],
         entities: [Post, User],
     });
+
+    conn.runMigrations();
 
     const app = express();
 
