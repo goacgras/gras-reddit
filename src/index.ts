@@ -23,7 +23,9 @@ import { User } from "./entities/User";
 // import { sendEmail } from "./utils/sendEmail";
 // import { User } from "./entities/User";
 import path from "path";
+import { Updoot } from "./entities/Updoot";
 
+//rerun
 const main = async () => {
     // sendEmail("reza@mail.com", "sup").catch(console.error);
     const conn = await createConnection({
@@ -34,10 +36,11 @@ const main = async () => {
         logging: true,
         synchronize: true,
         migrations: [path.join(__dirname, "./migrations/*")],
-        entities: [Post, User],
+        entities: [Post, User, Updoot],
     });
 
-    conn.runMigrations();
+    await conn.runMigrations();
+    // await Post.delete({});
 
     const app = express();
 
