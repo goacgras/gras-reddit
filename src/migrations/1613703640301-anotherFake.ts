@@ -1,6 +1,11 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class MockPosts1612359837225 implements MigrationInterface {
+export class anotherFake1613703640301 implements MigrationInterface {
+    name?: string | undefined;
+    down(queryRunner: QueryRunner): Promise<any> {
+        throw new Error("Method not implemented.");
+    }
+
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
         insert into posts (title, text, "creatorId", "createdAt") values ('Gamera vs. Viras ', 'Praesent blandit. Nam nulla. Integer pede justo, lacinia eget, tincidunt eget, tempus vel, pede.
