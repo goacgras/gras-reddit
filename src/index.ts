@@ -24,6 +24,8 @@ import { User } from "./entities/User";
 // import { User } from "./entities/User";
 import path from "path";
 import { Updoot } from "./entities/Updoot";
+import { createUserLoader } from "./utils/createUserLoader";
+import { createUpdootLoader } from "./utils/createUpdootLoader";
 
 //rerun
 const main = async () => {
@@ -73,7 +75,13 @@ const main = async () => {
             resolvers: [HelloResolver, PostResolver, UserResolver],
             validate: false,
         }),
-        context: ({ req, res }): MyContext => ({ req, res, redis }),
+        context: ({ req, res }): MyContext => ({
+            req,
+            res,
+            redis,
+            userLoader: createUserLoader(),
+            updootLoader: createUpdootLoader(),
+        }),
     });
 
     //create graphql end point on express
